@@ -45,10 +45,15 @@
     </plugin>
 
     <!-- ═══ Physics ════════════════════════════════════════════════ -->
-    <physics name="1ms" type="ode">
-      <max_step_size>0.001</max_step_size>
+    <!-- Halved the physics stepping frequency (1000Hz -> 500Hz) to cut CPU
+         load on constrained hardware; real_time_factor is unchanged since
+         max_step_size * real_time_update_rate stays the same (0.002*500 =
+         0.001*1000 = 1). A simple diff-drive warehouse robot doesn't need
+         1kHz contact resolution. -->
+    <physics name="2ms" type="ode">
+      <max_step_size>0.002</max_step_size>
       <real_time_factor>1</real_time_factor>
-      <real_time_update_rate>1000</real_time_update_rate>
+      <real_time_update_rate>500</real_time_update_rate>
     </physics>
 
     <!-- ═══ Scene ══════════════════════════════════════════════════ -->

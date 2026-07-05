@@ -16,11 +16,6 @@ Panels:
       - /Publish Point1
     Name: Tool Properties
     Splitter Ratio: 0.5886790156364441
-  - Class: rviz_common/Views
-    Expanded:
-      - /Current View1
-    Name: Views
-    Splitter Ratio: 0.3333333432674408
   - Class: nav2_rviz_plugins/Navigation 2
     Name: Navigation 2
   - Class: nav2_rviz_plugins/Selector
@@ -166,8 +161,6 @@ Window Geometry:
   Selector:
     collapsed: false
   Tool Properties:
-    collapsed: false
-  Views:
     collapsed: false
   Width: 1610
   X: 1091

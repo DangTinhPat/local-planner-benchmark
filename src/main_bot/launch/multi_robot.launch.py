@@ -11,7 +11,7 @@ from launch.actions import (
 )
 from launch.event_handlers import OnProcessExit
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import LaunchConfiguration
+from launch.substitutions import LaunchConfiguration, PythonExpression
 from launch_ros.actions import Node
 
 import xacro
@@ -90,6 +90,17 @@ def generate_launch_description():
         description="Gazebo world to load (name or full path to an .sdf file)",
     )
 
+    headless_arg = DeclareLaunchArgument(
+        "headless",
+        default_value="false",
+        description=(
+            "Run Gazebo without its 3D GUI (physics/sensors still run, just no "
+            "render window) - the GUI alone costs 2+ CPU cores, so this is the "
+            "knob to reach for on hardware-constrained machines. Watch the sim "
+            "through RViz instead."
+        ),
+    )
+
     gz_sim = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             os.path.join(
@@ -98,7 +109,14 @@ def generate_launch_description():
                 "gz_sim.launch.py",
             )
         ),
-        launch_arguments={"gz_args": [LaunchConfiguration("world"), " -r"]}.items(),
+        launch_arguments={
+            "gz_args": [
+                LaunchConfiguration("world"),
+                PythonExpression(
+                    ["' -r -s' if '", LaunchConfiguration("headless"), "' == 'true' else ' -r'"]
+                ),
+            ]
+        }.items(),
     )
 
     # /clock is world-wide and must be bridged exactly once, shared by every robot.
@@ -132,6 +150,7 @@ def generate_launch_description():
     return LaunchDescription(
         [
             world_arg,
+            headless_arg,
             # VS Code's snap packaging injects GTK_PATH into every integrated
             # terminal it spawns. gz sim's GUI then resolves the canberra-gtk-module
             # from inside that snap, which drags in the snap's bundled (older)
