@@ -24,6 +24,9 @@ LAUNCHES = {
         ("Gazebo", ["ros2", "launch", "main_bot", "multi_robot.launch.py"]),
         ("Gazebo (headless)", ["ros2", "launch", "main_bot", "multi_robot.launch.py", "headless:=true"]),
         ("Nav2", ["ros2", "launch", "main_bot", "multi_robot_nav2.launch.py"]),
+        # Needs Gazebo + Nav2 (above) already active; assigns each idle robot
+        # a dock->shelf->home putaway loop, forever.
+        ("Fleet Dispatcher", ["ros2", "run", "fleet_dispatcher", "fleet_dispatcher"]),
         ("RViz robot1", ["ros2", "launch", "main_bot", "multi_robot_rviz.launch.py", "namespace:=robot1"]),
         ("RViz robot2", ["ros2", "launch", "main_bot", "multi_robot_rviz.launch.py", "namespace:=robot2"]),
     ],
