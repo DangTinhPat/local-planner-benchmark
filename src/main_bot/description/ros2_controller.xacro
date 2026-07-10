@@ -27,9 +27,6 @@
         <plugin filename="gz_ros2_control-system"
                 name="gz_ros2_control::GazeboSimROS2ControlPlugin">
             <parameters>$(find main_bot)/config/controllers.yaml</parameters>
-            <ros>
-                <namespace>${robot_name}</namespace>
-            </ros>
         </plugin>
     </gazebo>
 

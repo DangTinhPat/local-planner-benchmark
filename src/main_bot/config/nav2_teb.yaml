@@ -1,14 +1,14 @@
+# Local planner under test: TEB (teb_local_planner). Global planner is always
+# A* (planner_server.GridBased below) - same in every nav2_<x>.yaml sibling in
+# this directory, only FollowPath differs between them. Switch between them
+# from the GUI's "Local planner" buttons, or directly with
+# `ros2 launch main_bot nav2.launch.py params_file:=.../config/nav2_teb.yaml`.
+#
+# TEB links against g2o at plugin-load time (see launch/nav2.launch.py's
+# LD_LIBRARY_PATH shim) - if controller_server fails to activate with a
+# dlopen/g2o error, that env var is the first thing to check.
 amcl:
   ros__parameters:
-    # This is robot1's copy of config/nav2_multi.yaml - identical except
-    # initial_pose, which is baked in statically per robot instead of computed
-    # at launch time. (Two earlier approaches both had real failure modes:
-    # publishing to /<robot>/initialpose after bringup raced AMCL's
-    # BEST_EFFORT/VOLATILE subscription and could silently drop; generating
-    # this file at launch time via an OpaqueFunction added a Python code path
-    # - yaml parsing, tempfile creation - that could fail before any node
-    # even started. A plain static file has neither failure mode.)
-    # robot1's dock is the map origin (0,0,0) - see multi_robot_nav2.launch.py.
     set_initial_pose: true
     initial_pose:
       x: 0.0
@@ -57,7 +57,7 @@ bt_navigator:
   ros__parameters:
     global_frame: map
     robot_base_frame: base_link
-    odom_topic: odom
+    odom_topic: /odom
     bt_loop_duration: 10
     default_server_timeout: 20
     wait_for_service_timeout: 1000
@@ -76,13 +76,7 @@ controller_server:
     # diff_drive_controller only accepts TwistStamped on /cmd_vel; every node in
     # the velocity pipeline (controller_server, behavior_server, velocity_smoother,
     # collision_monitor, docking_server) must publish/consume the stamped variant.
-    # Multi-robot uses the native gz-sim-diff-drive-system plugin (not
-    # ros2_control's diff_drive_controller), whose ros_gz_bridge topic is
-    # declared as plain geometry_msgs/Twist (see multi_robot.launch.py's
-    # bridge_node) - unlike single-robot's nav2.yaml, this must stay false or
-    # the final /cmd_vel type (TwistStamped) silently mismatches the bridge
-    # and no velocity command ever reaches Gazebo.
-    enable_stamped_cmd_vel: false
+    enable_stamped_cmd_vel: true
     controller_frequency: 20.0
     min_x_velocity_threshold: 0.001
     min_y_velocity_threshold: 0.5
@@ -93,12 +87,10 @@ controller_server:
     controller_plugins: ["FollowPath"]
     use_realtime_priority: false
 
-    # Progress checker parameters
     progress_checker:
       plugin: "nav2_controller::SimpleProgressChecker"
       required_movement_radius: 0.5
       movement_time_allowance: 10.0
-    # Goal checker parameters
     general_goal_checker:
       stateful: True
       plugin: "nav2_controller::SimpleGoalChecker"
@@ -106,13 +98,6 @@ controller_server:
       yaw_goal_tolerance: 0.25
     FollowPath:
       plugin: "teb_local_planner::TebLocalPlannerROS"
-      # Switched from MPPI: sampling-based (batch_size x time_steps state
-      # rollouts every cycle) was the heaviest node in the stack, and two
-      # robots' worth of it starved this machine's CPU (controller_server/
-      # planner_server loop rate collapsing to 1-13Hz, see e2e_nav2.log).
-      # TEB optimizes a small graph of poses (g2o) instead of sampling
-      # thousands of trajectories - lighter per-robot in theory; measure the
-      # real CPU delta after this switch rather than assuming a number.
       odom_topic: odom
       map_frame: map
       teb_autosize: 1.0
@@ -128,25 +113,26 @@ controller_server:
       feasibility_check_no_poses: 2
       publish_feedback: false
 
-      # Robot - carried over from the velocity_smoother/MPPI tuning below
-      # instead of TEB's stock demo defaults (tuned for a much slower robot).
-      max_vel_x: 1.0
-      max_vel_theta: 2.5
-      acc_lim_x: 2.5
-      acc_lim_theta: 3.2
+      # Speed ceiling matched across every nav2_<x>.yaml sibling (0.5 m/s /
+      # 1.9 rad/s, acc limits at controllers.yaml's actual ros2_control hard
+      # caps) so DWA/TEB/RPP/MPPI are compared on path-tracking behavior, not
+      # on who was given a bigger speed budget.
+      max_vel_x: 0.5
+      max_vel_theta: 1.9
+      acc_lim_x: 1.0
+      acc_lim_theta: 2.0
 
       footprint_model:
         type: "circular"
         # Exact circumscribed radius of the real chassis: box is 0.320m x
-        # 0.240m centered on base_link (robot_main.xacro: chassis_length/
-        # chassis_width, wheel_offset_x cancels the chasis joint's own
-        # offset) -> sqrt(0.16^2 + 0.12^2) = 0.20m. Wheels stick out to
-        # y=+-0.146 but only near x=0, so they stay inside this circle.
+        # 0.240m centered on base_link (description/robot_main.xacro:
+        # chassis_length/chassis_width, wheel_offset_x cancels the chassis
+        # joint's own offset) -> sqrt(0.16^2 + 0.12^2) = 0.20m. Wheels stick
+        # out to y=+-0.146 but only near x=0, so they stay inside this circle.
         radius: 0.20  # matches local/global costmap robot_radius below
 
       free_goal_vel: false
 
-      # Obstacles
       min_obstacle_dist: 0.27
       inflation_dist: 0.6
       include_costmap_obstacles: true
@@ -156,21 +142,16 @@ controller_server:
       include_dynamic_obstacles: true
       # Measured: default costmap_converter (background thread vectorizing
       # the whole local costmap into polygons every 200ms) plus
-      # no_inner/outer_iterations 5x4 made this controller_server cost 5-6x
-      # more CPU than the already-tuned MPPI it replaced (65.7% vs 10.9% avg,
-      # both robots navigating). Tried disabling costmap_converter (raw
-      # costmap-cell point obstacles instead of polygons) to cut that to
-      # 16.7%, but point obstacles are unreliable at tight corners - observed
-      # the planned path cutting a wall corner in rviz. Keeping
-      # costmap_converter on trades that CPU savings back for reliable
-      # polygon-based clearance; iterations still cut to 2x2 (20->4 passes)
-      # and homotopy planning still off, so this is 54.4% vs the 65.7%
-      # un-tuned default, not back to square one.
+      # no_inner/outer_iterations 5x4 cost significantly more controller_server
+      # CPU than point obstacles, but point obstacles are unreliable at tight
+      # corners - observed the planned path cutting a wall corner in rviz.
+      # Keeping costmap_converter on trades that CPU savings back for
+      # reliable polygon-based clearance; iterations cut to 2x2 (20->4
+      # passes) and homotopy planning off to keep the cost down.
       costmap_converter_plugin: "costmap_converter::CostmapToPolygonsDBSMCCH"
       costmap_converter_spin_thread: true
       costmap_converter_rate: 5
 
-      # Optimization
       no_inner_iterations: 2
       no_outer_iterations: 2
       optimization_activate: true
@@ -193,14 +174,15 @@ controller_server:
       weight_viapoint: 50.0
       weight_adapt_factor: 2.0
 
-      # Homotopy Class Planner
       enable_homotopy_class_planning: false
       enable_multithreading: true
       max_number_classes: 4
+
       selection_cost_hysteresis: 5.0
       selection_prefer_initial_plan: 1.0
       selection_obst_cost_scale: 1.0
       selection_alternative_time_cost: true
+
       roadmap_graph_no_samples: 15
       roadmap_graph_area_width: 5.0
       roadmap_graph_area_length_scale: 1.0
@@ -209,12 +191,13 @@ controller_server:
       obstacle_heading_threshold: 0.45
       switching_blocking_period: 0.0
       viapoints_all_candidates: true
+
       delete_detours_backwards: true
       max_ratio_detours_duration_best_duration: 3.0
+
       visualize_hc_graph: false
       visualize_with_time_as_z_axis_scale: 0.0
 
-      # Recovery
       shrink_horizon_backup: true
       shrink_horizon_min_duration: 10.0
       oscillation_recovery: true
@@ -234,17 +217,14 @@ local_costmap:
       width: 3
       height: 3
       resolution: 0.05
-      # Exact circumscribed radius of the real chassis (0.320m x 0.240m box
-      # centered on base_link, see robot_main.xacro) - sqrt(0.16^2+0.12^2).
-      robot_radius: 0.20
+      robot_radius: 0.20  # see FollowPath.footprint_model comment above for derivation
       plugins: ["voxel_layer", "inflation_layer"]
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 3.0
-        # Was 0.70 - 3.5x the robot's own 0.20m radius, eating into aisle
-        # clearance that was already tight (some corridors measured ~0.95m
-        # center-to-wall). robot_radius + ~50% buffer is plenty for a
-        # smooth cost gradient without being oversized relative to the robot.
+        # robot_radius + ~50% buffer: this warehouse's aisles measure as
+        # tight as ~0.95m center-to-wall, so a much larger radius eats too
+        # far into usable clearance for a smooth cost gradient.
         inflation_radius: 0.30
       voxel_layer:
         plugin: "nav2_costmap_2d::VoxelLayer"
@@ -257,9 +237,7 @@ local_costmap:
         mark_threshold: 0
         observation_sources: scan
         scan:
-          # Relative (not /scan): must stay inside this robot's namespace push,
-          # or every robot's local costmap ends up reading the SAME scan topic.
-          topic: scan
+          topic: /scan
           max_obstacle_height: 2.0
           clearing: True
           marking: True
@@ -280,9 +258,7 @@ global_costmap:
       publish_frequency: 1.0
       global_frame: map
       robot_base_frame: base_link
-      # Exact circumscribed radius of the real chassis (0.320m x 0.240m box
-      # centered on base_link, see robot_main.xacro) - sqrt(0.16^2+0.12^2).
-      robot_radius: 0.20
+      robot_radius: 0.20  # see FollowPath.footprint_model comment above for derivation
       resolution: 0.05
       track_unknown_space: true
       plugins: ["static_layer", "obstacle_layer", "inflation_layer"]
@@ -291,8 +267,7 @@ global_costmap:
         enabled: True
         observation_sources: scan
         scan:
-          # Relative (not /scan) - see local_costmap's scan.topic comment above.
-          topic: scan
+          topic: /scan
           max_obstacle_height: 2.0
           clearing: True
           marking: True
@@ -306,15 +281,10 @@ global_costmap:
         map_subscribe_transient_local: True
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        # Was 0.05 - smaller than the robot's own inscribed radius (0.12),
-        # which nav2 warned about on every startup ("configured inflation
-        # radius is smaller than the computed inscribed radius") but nothing
-        # acted on: with almost no cost gradient around obstacles, the
-        # global planner treated paths grazing a wall corner as cheap and
-        # routed straight through them. 0.30 = robot_radius (0.20) + ~50%
-        # buffer - fixes that without the 0.70 in an earlier pass, which
-        # was 3.5x the robot's actual size and ate into aisle clearance.
         cost_scaling_factor: 3.0
+        # Must not be smaller than the robot's inscribed radius, or the
+        # global planner treats paths grazing a wall corner as cheap and
+        # routes straight through them - see local_costmap comment above.
         inflation_radius: 0.30
       always_send_full_costmap: True
 
@@ -330,6 +300,7 @@ planner_server:
     expected_planner_frequency: 20.0
     planner_plugins: ["GridBased"]
     GridBased:
+      # A* - the global planner shared by every local-planner variant.
       plugin: "nav2_navfn_planner::NavfnPlanner"
       tolerance: 0.5
       use_astar: true
@@ -346,13 +317,7 @@ smoother_server:
 
 behavior_server:
   ros__parameters:
-    # Multi-robot uses the native gz-sim-diff-drive-system plugin (not
-    # ros2_control's diff_drive_controller), whose ros_gz_bridge topic is
-    # declared as plain geometry_msgs/Twist (see multi_robot.launch.py's
-    # bridge_node) - unlike single-robot's nav2.yaml, this must stay false or
-    # the final /cmd_vel type (TwistStamped) silently mismatches the bridge
-    # and no velocity command ever reaches Gazebo.
-    enable_stamped_cmd_vel: false
+    enable_stamped_cmd_vel: true
     local_costmap_topic: local_costmap/costmap_raw
     global_costmap_topic: global_costmap/costmap_raw
     local_footprint_topic: local_costmap/published_footprint
@@ -391,20 +356,17 @@ waypoint_follower:
 
 velocity_smoother:
   ros__parameters:
-    # Multi-robot uses the native gz-sim-diff-drive-system plugin (not
-    # ros2_control's diff_drive_controller), whose ros_gz_bridge topic is
-    # declared as plain geometry_msgs/Twist (see multi_robot.launch.py's
-    # bridge_node) - unlike single-robot's nav2.yaml, this must stay false or
-    # the final /cmd_vel type (TwistStamped) silently mismatches the bridge
-    # and no velocity command ever reaches Gazebo.
-    enable_stamped_cmd_vel: false
+    enable_stamped_cmd_vel: true
     smoothing_frequency: 20.0
     scale_velocities: False
     feedback: "OPEN_LOOP"
-    max_velocity: [1.0, 0.0, 2.5]
-    min_velocity: [-0.6, 0.0, -2.5]
-    max_accel: [2.5, 0.0, 3.2]
-    max_decel: [-2.5, 0.0, -3.2]
+    max_velocity: [0.5, 0.0, 1.9]
+    min_velocity: [-0.5, 0.0, -1.9]
+    # Matches controllers.yaml's diff_drive_controller hard limits - asking
+    # the smoother to ramp faster than ros2_control can actually deliver
+    # just means the tighter of the two layers silently wins.
+    max_accel: [1.0, 0.0, 2.0]
+    max_decel: [-1.0, 0.0, -2.0]
     odom_topic: "odom"
     odom_duration: 0.1
     deadband_velocity: [0.0, 0.0, 0.0]
@@ -412,13 +374,7 @@ velocity_smoother:
 
 collision_monitor:
   ros__parameters:
-    # Multi-robot uses the native gz-sim-diff-drive-system plugin (not
-    # ros2_control's diff_drive_controller), whose ros_gz_bridge topic is
-    # declared as plain geometry_msgs/Twist (see multi_robot.launch.py's
-    # bridge_node) - unlike single-robot's nav2.yaml, this must stay false or
-    # the final /cmd_vel type (TwistStamped) silently mismatches the bridge
-    # and no velocity command ever reaches Gazebo.
-    enable_stamped_cmd_vel: false
+    enable_stamped_cmd_vel: true
     base_frame_id: "base_footprint"
     odom_frame_id: "odom"
     cmd_vel_in_topic: "cmd_vel_smoothed"
@@ -428,15 +384,11 @@ collision_monitor:
     source_timeout: 1.0
     base_shift_correction: True
     stop_pub_timeout: 2.0
-    # Polygons represent zone around the robot for "stop", "slowdown" and "limit" action types,
-    # and robot footprint for "approach" action type.
     polygons: ["FootprintApproach"]
     FootprintApproach:
       type: "polygon"
       action_type: "approach"
-      # Relative (not /local_costmap/...): same namespacing reason as the scan
-      # topics above.
-      footprint_topic: "local_costmap/published_footprint"
+      footprint_topic: "/local_costmap/published_footprint"
       time_before_collision: 1.2
       simulation_time_step: 0.1
       min_points: 6
@@ -452,13 +404,7 @@ collision_monitor:
 
 docking_server:
   ros__parameters:
-    # Multi-robot uses the native gz-sim-diff-drive-system plugin (not
-    # ros2_control's diff_drive_controller), whose ros_gz_bridge topic is
-    # declared as plain geometry_msgs/Twist (see multi_robot.launch.py's
-    # bridge_node) - unlike single-robot's nav2.yaml, this must stay false or
-    # the final /cmd_vel type (TwistStamped) silently mismatches the bridge
-    # and no velocity command ever reaches Gazebo.
-    enable_stamped_cmd_vel: false
+    enable_stamped_cmd_vel: true
     controller_frequency: 50.0
     initial_perception_timeout: 5.0
     wait_charge_timeout: 5.0
@@ -471,7 +417,6 @@ docking_server:
     dock_backwards: false
     dock_prestaging_tolerance: 0.5
 
-    # Types of docks
     dock_plugins: ['simple_charging_dock']
     simple_charging_dock:
       plugin: 'opennav_docking::SimpleChargingDock'
@@ -489,16 +434,16 @@ docking_server:
       external_detection_rotation_yaw: 0.0
       filter_coef: 0.1
 
-    # Dock instances
-    # The following example illustrates configuring dock instances.
-    # docks: ['home_dock']  # Input your docks here
-    # home_dock:
-    #   type: 'simple_charging_dock'
-    #   frame: map
-    #   pose: [0.0, 0.0, 0.0]
-
     controller:
       k_phi: 3.0
       k_delta: 2.0
       v_linear_min: 0.15
       v_linear_max: 0.15
+
+loopback_simulator:
+  ros__parameters:
+    base_frame_id: "base_footprint"
+    odom_frame_id: "odom"
+    map_frame_id: "map"
+    scan_frame_id: "base_scan"
+    update_duration: 0.02

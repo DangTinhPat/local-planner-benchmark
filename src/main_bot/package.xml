@@ -21,6 +21,8 @@
   <exec_depend>slam_toolbox</exec_depend>
   <exec_depend>nav2_bringup</exec_depend>
   <exec_depend>teb_local_planner</exec_depend>
+  <exec_depend>nav2_dwb_controller</exec_depend>
+  <exec_depend>nav2_regulated_pure_pursuit_controller</exec_depend>
 
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>

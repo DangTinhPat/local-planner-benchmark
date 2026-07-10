@@ -23,7 +23,6 @@
     <xacro:property name="caster_wheel_offset_rear"  value="${caster_wheel_radius + caster_wheel_margin}"/>
 
 
-    <!-- Colors -->
     <material name="white">
         <color rgba= "1 1 1 1"/>    
     </material>
@@ -49,12 +48,9 @@
     </material>
 
 
-    <!-- convention (except base_link): joint followed by link -->
-    <!-- base_link -->
     <link name="base_link">
     </link>
 
-    <!-- base_footprint -->
     <joint name="base_footprint_joint" type="fixed">
         <parent link= "base_link"/>
         <child link= "base_footprint"/>
@@ -64,7 +60,6 @@
     <link name="base_footprint">
     </link>
 
-    <!-- chasis -->
     <joint name="chasis_joint" type="fixed">
         <parent link= "base_link"/>
         <child link= "chasis"/>
@@ -97,7 +92,6 @@
         </material>
     </gazebo>
 
-    <!-- left_wheel -->
     <joint name="left_wheel_joint" type="continuous">
         <parent link= "base_link"/>
         <child link= "left_wheel"/>
@@ -129,7 +123,6 @@
         </material>
     </gazebo>
 
-    <!-- right_wheel -->
     <joint name="right_wheel_joint" type="continuous">
         <parent link= "base_link"/>
         <child link= "right_wheel"/>
@@ -161,7 +154,6 @@
         </material>
     </gazebo>
 
-    <!-- caster_wheel_front -->
     <joint name="caster_wheel_front_joint" type="fixed">
         <parent link= "chasis"/>
         <child link= "caster_wheel_front"/>
@@ -194,7 +186,6 @@
         <mu2 value= "0.0001"/>
     </gazebo>
 
-    <!-- caster_wheel_rear -->
     <joint name="caster_wheel_rear_joint" type="fixed">
         <parent link= "chasis"/>
         <child link= "caster_wheel_rear"/>

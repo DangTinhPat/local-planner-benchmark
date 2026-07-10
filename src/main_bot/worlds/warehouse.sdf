@@ -419,27 +419,18 @@
           <material><ambient>0.82 0.76 0.08 1</ambient><diffuse>0.82 0.76 0.08 1</diffuse></material></visual></link>
     </model>
 
-    <!-- ═══ CHARGING STATION — recessed bay, south wall of Room B (3.75, -4.175) ═══ -->
-    <!-- Moved out of Room A (west-wall bay) into Room B's south side, in line   -->
-    <!-- with receiving dock 1 (x=3.75) up north — robot's home column runs     -->
-    <!-- straight north-south through the middle of Room B.                    -->
-    <!-- Widened vs. a strict 2×-footprint bay (0.5m) to 0.8m: at 0.5m wide the -->
-    <!-- walls sat only 0.28m from the pad center, tighter than Nav2's         -->
-    <!-- robot_radius(0.22)+inflation_radius — costmap saw the spawn point as  -->
-    <!-- "occupied" and the planner refused every goal. 0.8m gives 0.39m of    -->
-    <!-- clearance to each wall, comfortably outside the inflation zone.      -->
+    <!-- ═══ CHARGING STATION — floor marking only, south side of Room B        -->
+    <!-- (3.75, -4.175) ═══ -->
+    <!-- In line with receiving dock 1 (x=3.75) up north — robot's home column -->
+    <!-- runs straight north-south through the middle of Room B. Used to have  -->
+    <!-- chrg_wall_w/e enclosing this as a physical bay; removed because their -->
+    <!-- side walls sat only ~0.37m from the pad center, close enough to fall  -->
+    <!-- inside a flocking robot's forward obstacle-avoidance cone and get     -->
+    <!-- mistaken for something blocking the way out (see flocking_node.py's   -->
+    <!-- cone_half_angle comment) - the pad is purely a visual floor marking   -->
+    <!-- now, no physical bay.                                                -->
 
-    <model name="chrg_wall_w"><static>true</static><pose>3.34 -4.175 0.15 0 0 0</pose>
-      <link name="link"><collision name="col"><geometry><box><size>0.08 0.6 0.3</size></box></geometry></collision>
-        <visual name="vis"><geometry><box><size>0.08 0.6 0.3</size></box></geometry>
-          <material><ambient>0.85 0.75 0.05 1</ambient><diffuse>0.85 0.75 0.05 1</diffuse></material></visual></link>
-    </model>
-    <model name="chrg_wall_e"><static>true</static><pose>4.16 -4.175 0.15 0 0 0</pose>
-      <link name="link"><collision name="col"><geometry><box><size>0.08 0.6 0.3</size></box></geometry></collision>
-        <visual name="vis"><geometry><box><size>0.08 0.6 0.3</size></box></geometry>
-          <material><ambient>0.85 0.75 0.05 1</ambient><diffuse>0.85 0.75 0.05 1</diffuse></material></visual></link>
-    </model>
-    <!-- Charging pad (green), widened for Nav2 clearance (see note above) -->
+    <!-- Charging pad (green) -->
     <model name="chrg_pad"><static>true</static><pose>3.75 -4.175 0.00025 0 0 0</pose>
       <link name="link">
         <visual name="vis"><geometry><box><size>0.8 0.6 0.0005</size></box></geometry>
@@ -452,20 +443,8 @@
           <material><ambient>0.85 0.75 0.05 1</ambient><diffuse>0.85 0.75 0.05 1</diffuse></material></visual></link>
     </model>
 
-    <!-- ═══ CHARGING STATION 2 — second bay, east of bay 1 with a 0.10m gap    -->
-    <!-- between the walls (bay1 east wall outer face at x=4.20, bay2 west     -->
-    <!-- wall outer face at x=4.30). Same south-facing layout as bay 1, for    -->
-    <!-- robot2 in the multi-robot setup.                                     -->
-    <model name="chrg2_wall_w"><static>true</static><pose>4.34 -4.175 0.15 0 0 0</pose>
-      <link name="link"><collision name="col"><geometry><box><size>0.08 0.6 0.3</size></box></geometry></collision>
-        <visual name="vis"><geometry><box><size>0.08 0.6 0.3</size></box></geometry>
-          <material><ambient>0.85 0.75 0.05 1</ambient><diffuse>0.85 0.75 0.05 1</diffuse></material></visual></link>
-    </model>
-    <model name="chrg2_wall_e"><static>true</static><pose>5.16 -4.175 0.15 0 0 0</pose>
-      <link name="link"><collision name="col"><geometry><box><size>0.08 0.6 0.3</size></box></geometry></collision>
-        <visual name="vis"><geometry><box><size>0.08 0.6 0.3</size></box></geometry>
-          <material><ambient>0.85 0.75 0.05 1</ambient><diffuse>0.85 0.75 0.05 1</diffuse></material></visual></link>
-    </model>
+    <!-- ═══ CHARGING STATION 2 — second bay, east of bay 1, for robot2 in the  -->
+    <!-- multi-robot setup. Floor marking only, same as bay 1 above.           -->
     <model name="chrg2_pad"><static>true</static><pose>4.75 -4.175 0.00025 0 0 0</pose>
       <link name="link">
         <visual name="vis"><geometry><box><size>0.8 0.6 0.0005</size></box></geometry>

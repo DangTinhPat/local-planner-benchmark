@@ -1,7 +1,6 @@
 slam_toolbox:
   ros__parameters:
 
-    # Plugin params
     solver_plugin: solver_plugins::CeresSolver
     ceres_linear_solver: SPARSE_NORMAL_CHOLESKY
     ceres_preconditioner: SCHUR_JACOBI
@@ -9,7 +8,6 @@ slam_toolbox:
     ceres_dogleg_type: TRADITIONAL_DOGLEG
     ceres_loss_function: None
 
-    # ROS Parameters
     odom_frame: odom
     map_frame: map
     base_frame: base_footprint
@@ -17,11 +15,6 @@ slam_toolbox:
     use_map_saver: true
     mode: mapping
 
-    # if you'd like to immediately start continuing a map at a given pose
-    # or at the dock, but they are mutually exclusive, if pose is given
-    # will use pose
-    # map_file_name: 
-    # map_start_pose: [0.0, 0.0, 0.0]
     map_start_at_dock: true
 
     debug_logging: false
@@ -36,7 +29,6 @@ slam_toolbox:
     stack_size_to_use: 40000000 #// program needs a larger stack size to serialize large maps
     enable_interactive_mode: true
 
-    # General Parameters
     use_scan_matching: true
     use_scan_barycenter: true
     minimum_travel_distance: 0.5
@@ -52,18 +44,15 @@ slam_toolbox:
     loop_match_minimum_response_coarse: 0.35    
     loop_match_minimum_response_fine: 0.45
 
-    # Correlation Parameters - Correlation Parameters
     correlation_search_space_dimension: 0.5
     correlation_search_space_resolution: 0.01
-    correlation_search_space_smear_deviation: 0.1 
+    correlation_search_space_smear_deviation: 0.1
 
-    # Correlation Parameters - Loop Closure Parameters
     loop_search_space_dimension: 8.0
     loop_search_space_resolution: 0.05
     loop_search_space_smear_deviation: 0.03
 
-    # Scan Matcher Parameters
-    distance_variance_penalty: 0.5      
+    distance_variance_penalty: 0.5
     angle_variance_penalty: 1.0    
 
     fine_search_angle_offset: 0.00349     

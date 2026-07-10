@@ -1,34 +1,8 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro"  name="robot">
 
-    <!-- Multi-robot support: empty by default so single-robot launches
-         (gz.launch.py, slam.launch.py, nav2.launch.py) are unaffected.
-         Pass robot_name (no slash, e.g. "robot1") to get a ROS namespace
-         for the controller_manager and a "robot1/" tf/topic prefix. -->
-    <xacro:arg name="robot_name" default=""/>
-    <xacro:property name="robot_name" value="$(arg robot_name)"/>
-    <xacro:property name="frame_prefix" value="${'' if robot_name == '' else robot_name + '/'}"/>
-
-    <!-- ros2_control (via gz_ros2_control) is the default: it's what gz.launch.py /
-         slam.launch.py / nav2.launch.py are built and tested against for a single
-         robot. gz_ros2_control has proven unreliable running multiple controller_manager
-         instances in one Gazebo process, so multi_robot.launch.py sets this false to
-         get the plain gz-sim DiffDrive plugin instead (no per-robot controller_manager). -->
-    <xacro:arg name="use_ros2_control" default="true"/>
-    <xacro:property name="use_ros2_control" value="$(arg use_ros2_control)"/>
-
-    <!-- Robot_frames -->
     <xacro:include filename = "robot_main.xacro" />
-
-    <!-- Controls -->
-    <xacro:if value="${use_ros2_control}">
-        <xacro:include filename = "ros2_controller.xacro" />
-    </xacro:if>
-    <xacro:unless value="${use_ros2_control}">
-        <xacro:include filename = "gz_diff_drive.xacro" />
-    </xacro:unless>
-
-    <!-- Sensors -->
+    <xacro:include filename = "ros2_controller.xacro" />
     <xacro:include filename = "lidar.xacro" />
 
 </robot>

@@ -9,49 +9,49 @@ import tkinter as tk
 from tkinter import scrolledtext, ttk
 
 import rclpy
-from geometry_msgs.msg import Twist, TwistStamped
+from ament_index_python.packages import get_package_share_directory
+from geometry_msgs.msg import TwistStamped
 
-# Each entry: (button label, ros2 launch argv). Kept as plain argv lists (not
-# shell strings) so no shell quoting/injection concerns launching them.
-LAUNCHES = {
-    "1 Robot": [
-        ("Gazebo", ["ros2", "launch", "main_bot", "gz.launch.py"]),
-        ("RViz", ["ros2", "launch", "main_bot", "rz.launch.py"]),
-        ("SLAM", ["ros2", "launch", "main_bot", "slam.launch.py"]),
-        ("Nav2", ["ros2", "launch", "main_bot", "nav2.launch.py"]),
-    ],
-    "2 Robot (bay dan)": [
-        ("Gazebo", ["ros2", "launch", "main_bot", "multi_robot.launch.py"]),
-        ("Gazebo (headless)", ["ros2", "launch", "main_bot", "multi_robot.launch.py", "headless:=true"]),
-        ("Nav2", ["ros2", "launch", "main_bot", "multi_robot_nav2.launch.py"]),
-        # Needs Gazebo + Nav2 (above) already active; assigns each idle robot
-        # a dock->shelf->home putaway loop, forever.
-        ("Fleet Dispatcher", ["ros2", "run", "fleet_dispatcher", "fleet_dispatcher"]),
-        ("RViz robot1", ["ros2", "launch", "main_bot", "multi_robot_rviz.launch.py", "namespace:=robot1"]),
-        ("RViz robot2", ["ros2", "launch", "main_bot", "multi_robot_rviz.launch.py", "namespace:=robot2"]),
-    ],
-}
+_MAIN_BOT_SHARE = get_package_share_directory("main_bot")
 
-# Publishing straight to each robot's final /cmd_vel (the gz-sim DiffDrive
-# plugin's input topic, or ros2_control's diff_drive_controller for the
-# single-robot stack) rather than through Nav2's controller_server, so the
-# joystick works with or without Nav2 running. It will fight Nav2 for control
-# if a nav goal is active at the same time - that's an accepted tradeoff of a
-# manual override, not something to arbitrate away here.
+
+def _nav2_config(name):
+    return os.path.join(_MAIN_BOT_SHARE, "config", f"nav2_{name}.yaml")
+
+
+# Plain process launches - independent of one another, toggle freely.
+LAUNCHES = [
+    ("Gazebo", ["ros2", "launch", "main_bot", "gz.launch.py"]),
+    ("RViz", ["ros2", "launch", "main_bot", "rz.launch.py"]),
+    ("SLAM", ["ros2", "launch", "main_bot", "slam.launch.py"]),
+]
+
+# Local planners under test - the global planner (A*) is the same in every
+# config, only controller_server's FollowPath plugin differs (see
+# config/nav2_{mppi,teb,dwb,rpp}.yaml). Needs Gazebo + a map (SLAM, or reuse
+# the saved maps/warehouse.yaml) already active.
+NAV2_ALGORITHMS = [
+    ("DWA", ["ros2", "launch", "main_bot", "nav2.launch.py", f"params_file:={_nav2_config('dwb')}"]),
+    ("TEB", ["ros2", "launch", "main_bot", "nav2.launch.py", f"params_file:={_nav2_config('teb')}"]),
+    ("RPP", ["ros2", "launch", "main_bot", "nav2.launch.py", f"params_file:={_nav2_config('rpp')}"]),
+    ("MPPI", ["ros2", "launch", "main_bot", "nav2.launch.py", f"params_file:={_nav2_config('mppi')}"]),
+]
+# Mutually exclusive: all four bind the same /cmd_vel, /plan, etc., so
+# starting one stops whichever other is already running (see App._toggle).
+NAV2_ALGORITHM_NAMES = {f"Nav2/{label}" for label, _ in NAV2_ALGORITHMS}
+
+# Publishing straight to the final /cmd_vel (ros2_control's diff_drive_controller
+# input topic) rather than through Nav2's controller_server, so the joystick works
+# with or without Nav2 running. It will fight Nav2 for control if a nav goal is
+# active at the same time - that's an accepted tradeoff of a manual override, not
+# something to arbitrate away here.
 #
-# Message type differs per target: single-robot's diff_drive_controller (see
-# config/controllers.yaml + config/nav2.yaml's enable_stamped_cmd_vel: true)
-# only accepts TwistStamped on /cmd_vel - a plain Twist publisher on that same
-# topic name never matches it (ROS2 topics are type-checked) and silently does
-# nothing. Multi-robot's gz-sim DiffDrive plugin bridge is plain Twist instead
-# (enable_stamped_cmd_vel: false throughout nav2_robot{1,2}.yaml).
-# name -> (topic, stamped)
-TELEOP_TARGETS = {
-    "1 Robot": ("/cmd_vel", True),
-    "Robot 1": ("/robot1/cmd_vel", False),
-    "Robot 2": ("/robot2/cmd_vel", False),
-}
-# Capped well below FollowPath.vx_max/wz_max in config/nav2_robot{1,2}.yaml -
+# diff_drive_controller only accepts TwistStamped on /cmd_vel (see
+# config/controllers.yaml + every config/nav2_*.yaml's enable_stamped_cmd_vel:
+# true) - a plain Twist publisher on that same topic name never matches it
+# (ROS2 topics are type-checked) and silently does nothing.
+TELEOP_TOPIC = "/cmd_vel"
+# Capped well below every config/nav2_*.yaml's FollowPath velocity ceiling -
 # manual joystick driving wants finer control, not the fastest the robot can go.
 JOY_MAX_LINEAR = 0.4
 JOY_MAX_ANGULAR = 1.0
@@ -91,16 +91,6 @@ def build_style(root):
     style.configure("Muted.Panel.TLabel", background=PANEL, foreground=MUTED, font=(FONT, 9))
     style.configure("Readout.Panel.TLabel", background=PANEL, foreground=ACCENT, font=(FONT_MONO, 11, "bold"))
 
-    style.configure("TNotebook", background=BG, borderwidth=0, tabmargins=(0, 8, 0, 0))
-    style.configure(
-        "TNotebook.Tab", background=PANEL, foreground=MUTED, padding=(18, 10), font=(FONT, 10, "bold"), borderwidth=0
-    )
-    style.map(
-        "TNotebook.Tab",
-        background=[("selected", ACCENT)],
-        foreground=[("selected", "#ffffff")],
-    )
-
     style.configure(
         "Launch.TButton", background=PANEL_LIGHT, foreground=TEXT, borderwidth=0, padding=(12, 10), font=(FONT, 10)
     )
@@ -120,9 +110,6 @@ def build_style(root):
         "Danger.TButton", background=DANGER, foreground="#2b0008", borderwidth=0, padding=(12, 10), font=(FONT, 11, "bold")
     )
     style.map("Danger.TButton", background=[("active", DANGER_ACTIVE)])
-
-    style.configure("TRadiobutton", background=PANEL, foreground=TEXT, font=(FONT, 9))
-    style.map("TRadiobutton", background=[("active", PANEL)], foreground=[("active", ACCENT)])
 
     style.configure("TLabelframe", background=PANEL, bordercolor=GRID_LINE, darkcolor=PANEL, lightcolor=PANEL)
     style.configure("TLabelframe.Label", background=PANEL, foreground=ACCENT, font=(FONT, 11, "bold"))
@@ -290,11 +277,7 @@ class App:
         self.manager = LaunchManager(self.log_queue)
         self.status_buttons = {}
 
-        self.teleop_pubs = {
-            name: (ros_node.create_publisher(TwistStamped if stamped else Twist, topic, 10), stamped)
-            for name, (topic, stamped) in TELEOP_TARGETS.items()
-        }
-        self.teleop_target = tk.StringVar(value="1 Robot")
+        self.teleop_pub = ros_node.create_publisher(TwistStamped, TELEOP_TOPIC, 10)
         self._joy_linear = 0.0
         self._joy_angular = 0.0
         self._closing = False
@@ -315,15 +298,19 @@ class App:
         left.pack(side=tk.LEFT, fill="y", padx=(0, 16))
 
         ttk.Label(left, text="Main Bot", style="Header.TLabel").pack(anchor="w")
-        ttk.Label(left, text="Control panel", style="SubHeader.TLabel").pack(anchor="w", pady=(0, 12))
+        ttk.Label(left, text="Single-robot local planner test rig", style="SubHeader.TLabel").pack(
+            anchor="w", pady=(0, 12)
+        )
 
-        notebook = ttk.Notebook(left)
-        notebook.pack(fill="x")
-        for group_name, items in LAUNCHES.items():
-            tab = ttk.Frame(notebook, style="Panel.TFrame", padding=12)
-            notebook.add(tab, text=group_name)
-            for label, cmd in items:
-                self._make_launch_row(tab, f"{group_name}/{label}", label, cmd)
+        sim_box = ttk.LabelFrame(left, text="Simulation", padding=12)
+        sim_box.pack(fill="x")
+        for label, cmd in LAUNCHES:
+            self._make_launch_row(sim_box, label, label, cmd)
+
+        planner_box = ttk.LabelFrame(left, text="Local planner (global: A*)", padding=12)
+        planner_box.pack(fill="x", pady=(16, 0))
+        for label, cmd in NAV2_ALGORITHMS:
+            self._make_launch_row(planner_box, f"Nav2/{label}", label, cmd)
 
         self._build_teleop_panel(left)
 
@@ -361,13 +348,6 @@ class App:
         box = ttk.LabelFrame(parent, text="Dieu khien thu cong", padding=12)
         box.pack(fill="x", pady=(16, 0))
 
-        target_row = ttk.Frame(box, style="Panel.TFrame")
-        target_row.pack(fill="x", pady=(0, 10))
-        for target in TELEOP_TARGETS:
-            ttk.Radiobutton(
-                target_row, text=target, value=target, variable=self.teleop_target, style="TRadiobutton"
-            ).pack(side=tk.LEFT, padx=(0, 10))
-
         joy_row = ttk.Frame(box, style="Panel.TFrame")
         joy_row.pack()
         Joystick(joy_row, on_change=self._on_joy_change).pack()
@@ -382,24 +362,18 @@ class App:
         self._joy_angular = -nx * JOY_MAX_ANGULAR
         self.readout.configure(text=f"v={self._joy_linear:+.2f} m/s   w={self._joy_angular:+.2f} rad/s")
 
-    def _publish_on(self, target_name, linear, angular):
-        pub, stamped = self.teleop_pubs[target_name]
-        if stamped:
-            msg = TwistStamped()
-            msg.header.stamp = self.ros_node.get_clock().now().to_msg()
-            msg.header.frame_id = "base_link"
-            msg.twist.linear.x = linear
-            msg.twist.angular.z = angular
-        else:
-            msg = Twist()
-            msg.linear.x = linear
-            msg.angular.z = angular
-        pub.publish(msg)
+    def _publish_teleop_at(self, linear, angular):
+        msg = TwistStamped()
+        msg.header.stamp = self.ros_node.get_clock().now().to_msg()
+        msg.header.frame_id = "base_link"
+        msg.twist.linear.x = linear
+        msg.twist.angular.z = angular
+        self.teleop_pub.publish(msg)
 
     def _publish_teleop(self):
         if self._closing:
             return
-        self._publish_on(self.teleop_target.get(), self._joy_linear, self._joy_angular)
+        self._publish_teleop_at(self._joy_linear, self._joy_angular)
         self.root.after(int(1000 / JOY_PUBLISH_HZ), self._publish_teleop)
 
     # -- launch buttons ------------------------------------------------
@@ -407,8 +381,15 @@ class App:
     def _toggle(self, name, cmd):
         if self.manager.is_running(name):
             self.manager.stop(name)
-        else:
-            self.manager.start(name, cmd)
+            return
+        if name in NAV2_ALGORITHM_NAMES:
+            # Only one local planner can own /cmd_vel at a time - starting a
+            # new one stops whichever of the other three is running instead
+            # of letting two controller_servers fight over the same topics.
+            for other in NAV2_ALGORITHM_NAMES:
+                if other != name:
+                    self.manager.stop(other)
+        self.manager.start(name, cmd)
 
     def _refresh_statuses(self):
         for name, btn in self.status_buttons.items():
@@ -438,8 +419,7 @@ class App:
         for why a terminal Ctrl+C on this GUI does not)."""
         self._closing = True
         self.manager.stop_all()
-        for name in self.teleop_pubs:
-            self._publish_on(name, 0.0, 0.0)
+        self._publish_teleop_at(0.0, 0.0)
         self.root.destroy()
 
 

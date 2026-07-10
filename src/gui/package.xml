@@ -8,7 +8,7 @@
   <license>TODO: License declaration</license>
 
   <exec_depend>main_bot</exec_depend>
-  <exec_depend>fleet_dispatcher</exec_depend>
+  <exec_depend>ament_index_python</exec_depend>
   <exec_depend>python3-tk</exec_depend>
   <exec_depend>rclpy</exec_depend>
   <exec_depend>geometry_msgs</exec_depend>
