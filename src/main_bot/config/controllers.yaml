@@ -29,10 +29,14 @@
 
     linear.x.max_velocity: 1.0
     linear.x.min_velocity: -1.0
-    linear.x.max_acceleration: 1.0
-    linear.x.min_acceleration: -1.0
+    # Raised from 1.0: this is a sim wheel limiter, not a hardware ceiling, and
+    # 1.0 m/s^2 throttled the whole velocity pipeline (every Nav2 local planner
+    # felt sluggish). 2.5/3.2 matches what the planners + velocity_smoother are
+    # tuned around.
+    linear.x.max_acceleration: 2.5
+    linear.x.min_acceleration: -2.5
 
     angular.z.max_velocity: 2.0
     angular.z.min_velocity: -2.0
-    angular.z.max_acceleration: 2.0
-    angular.z.min_acceleration: -2.0
+    angular.z.max_acceleration: 3.2
+    angular.z.min_acceleration: -3.2

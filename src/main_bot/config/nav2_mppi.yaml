@@ -207,7 +207,7 @@ local_costmap:
       plugins: ["voxel_layer", "inflation_layer"]
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        cost_scaling_factor: 3.0
+        cost_scaling_factor: 2.5   # <3.0: cost stays higher further from walls -> prefer aisle centre, less corner-cutting
         # robot_radius + ~50% buffer: this warehouse's aisles measure as
         # tight as ~0.95m center-to-wall, so a much larger radius (e.g. 0.70)
         # eats too far into usable clearance for a smooth cost gradient.
@@ -267,7 +267,7 @@ global_costmap:
         map_subscribe_transient_local: True
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        cost_scaling_factor: 3.0
+        cost_scaling_factor: 2.5   # <3.0: cost stays higher further from walls -> prefer aisle centre, less corner-cutting
         # Must not be smaller than the robot's inscribed radius, or the
         # global planner treats paths grazing a wall corner as cheap and
         # routes straight through them - see local_costmap comment above.
@@ -348,11 +348,13 @@ velocity_smoother:
     feedback: "OPEN_LOOP"
     max_velocity: [0.5, 0.0, 1.9]
     min_velocity: [-0.5, 0.0, -1.9]
-    # Matches controllers.yaml's diff_drive_controller hard limits - asking
-    # the smoother to ramp faster than ros2_control can actually deliver
-    # just means the tighter of the two layers silently wins.
-    max_accel: [1.0, 0.0, 2.0]
-    max_decel: [-1.0, 0.0, -2.0]
+    # Agile accel budget: an earlier pass clamped these to 1.0/2.0 to match
+    # controllers.yaml and made every planner feel sluggish (slow to reach
+    # speed, always lagging the plan). controllers.yaml's diff_drive_controller
+    # accel limits were raised to 2.5/3.2 to match, so this is no longer
+    # throttled below what ros2_control actually delivers.
+    max_accel: [2.5, 0.0, 3.2]
+    max_decel: [-2.5, 0.0, -3.2]
     odom_topic: "odom"
     odom_duration: 0.1
     deadband_velocity: [0.0, 0.0, 0.0]
