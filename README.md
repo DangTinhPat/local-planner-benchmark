@@ -57,7 +57,19 @@ Công bố gốc của từng thuật toán ở phần [Tham khảo](#tham-khả
 Robot là một nền vi sai hai bánh chủ động, thân hộp 0.320 × 0.240 × 0.078 m,
 bánh bán kính 0.05 m cách nhau 0.266 m, mang một LiDAR 2D 360 tia (10 Hz, tầm
 0.08–10 m). Bán kính ngoại tiếp thân là 0.20 m; đây cũng là `robot_radius`
-dùng cho costmap.
+dùng cho costmap. Mô tả URDF trong [`description/`](src/main_bot/description/)
+dựng theo đúng bản vẽ cơ khí và khung thật dưới đây:
+
+<table>
+<tr>
+<td width="50%"><img src="src/main_bot/pics/urdf3d.jpg" alt="Bản vẽ CAD của khung robot"></td>
+<td width="50%"><img src="src/main_bot/pics/realrobotrun.jpg" alt="Robot chạy thử trên nền thật"></td>
+</tr>
+<tr>
+<td align="center"><sub>Bản vẽ CAD — khung, vị trí LiDAR và khoang điện tử</sub></td>
+<td align="center"><sub>Robot chạy thử ngoài đời, cùng cấu hình bánh và cảm biến</sub></td>
+</tr>
+</table>
 
 Bản đồ là một nhà kho ([`worlds/warehouse.sdf`](src/main_bot/worlds/warehouse.sdf))
 với kệ hàng và lối đi hẹp — chỗ hẹp nhất chỉ khoảng 0.95 m tính từ tâm lối tới
